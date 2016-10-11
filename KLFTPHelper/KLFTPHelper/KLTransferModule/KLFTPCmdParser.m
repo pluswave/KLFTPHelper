@@ -49,6 +49,9 @@
                 [self.readBuffer setString:@""];
             }
         }
+        else{
+            [self.delegate parserNeedMoreData:self];
+        }
     }
     else{
         // ASSERT HERE

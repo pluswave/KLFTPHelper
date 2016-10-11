@@ -91,7 +91,6 @@ typedef enum {
         self.tcpSocket = [[GCDAsyncSocket alloc] initWithDelegate:self delegateQueue:dispatch_get_global_queue(0, 0)];
         NSError * error = nil;
         [self.tcpSocket connectToHost:host onPort:21 error:&error];
-        [self.tcpSocket readDataWithTimeout:-1 tag:0];
         self.parser = [ [KLFTPCmdParser alloc] initWithDelegate:self];
         return !!error ? NO : YES;
     }
@@ -102,7 +101,7 @@ typedef enum {
     cmd = [cmd stringByAppendingString:@"\r\n"];
     NSData * cmdData = [NSData dataWithBytes:[cmd UTF8String] length:cmd.length];
     [self.tcpSocket writeData:cmdData withTimeout:-1 tag:0];
-    [self.tcpSocket readDataWithTimeout:-1 tag:1];
+    [self.tcpSocket readDataWithTimeout:3 tag:1];
 }
 
 - (KLFTPTransferState)transferingStateForTransferItem:(KLFTPTransferItem *)item {
@@ -472,16 +471,25 @@ typedef enum {
     
 }
 
+- (void) parserNeedMoreData:(KLFTPCmdParser*)parser{
+    [self.tcpSocket readDataWithTimeout:2 tag:0];
+}
+
 
 #pragma mark - GCDAsyncSocketDelegate
 
 - (void)socket:(GCDAsyncSocket *)sock didConnectToHost:(NSString *)host port:(uint16_t)port {
+    if(sock == self.tcpSocket){
+        [self.tcpSocket readDataWithTimeout:3 tag:0];
+    }
 }
 
 - (void)socket:(GCDAsyncSocket *)sock didReadData:(NSData *)data withTag:(long)tag {
     if( sock != self.tcpSocket )
         return;
     NSString * resultStr = [[NSString alloc] initWithBytes:data.bytes length:[data length] encoding:NSUTF8StringEncoding];
+    NSLog(resultStr);
+    NSLog(@"length: %ld", (unsigned long)[data length] );
     [self.parser parseString:resultStr];
  }
 
@@ -510,6 +518,15 @@ typedef enum {
 }
 
 - (void)socketDidDisconnect:(GCDAsyncSocket *)sock withError:(NSError *)err {
+    if( sock == self.tcpSocket){
+        NSLog(@"ctrl socket disconnect");
+    }
+    else if( sock == self.writeSocket){
+        NSLog(@"data socket disconnect");
+    }
+    else{
+        NSLog(@"Timing issue, socks %p, %p, %p ", sock, self.tcpSocket, self.writeSocket);
+    }
 }
 
 @end

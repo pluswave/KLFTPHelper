@@ -47,5 +47,6 @@
 @end
 
 @protocol KLFTPCmdParserDelegate <NSObject>
-- (void)klFTPCmdParser:(KLFTPCmdParser*)parser didParsedServerResponse:(NSString *)response;
+- (void)klFTPCmdParser:(KLFTPCmdParser *)parser didParsedServerResponse:(NSString *)response;
+- (void)parserNeedMoreData:(KLFTPCmdParser *)parser;
 @end
