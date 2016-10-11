@@ -35,6 +35,7 @@
  */
 
 #import "KLFTPUploader.h"
+#import "KLFTPCmdParser.h"
 #import "GCDAsyncSocket.h"
 
 #define WRITE_TAG       100011
@@ -76,6 +77,8 @@ typedef enum {
 
 @property (nonatomic, assign) BOOL                  isFileSizeCmdSend;
 
+@property (nonatomic, strong) KLFTPCmdParser        * parser;
+
 @end
 
 @implementation KLFTPUploader
@@ -89,6 +92,7 @@ typedef enum {
         NSError * error = nil;
         [self.tcpSocket connectToHost:host onPort:21 error:&error];
         [self.tcpSocket readDataWithTimeout:-1 tag:0];
+        self.parser = [ [KLFTPCmdParser alloc] initWithDelegate:self];
         return !!error ? NO : YES;
     }
     return NO;
@@ -396,14 +400,11 @@ typedef enum {
     });
 }
 
-#pragma mark - GCDAsyncSocketDelegate
+#pragma mark - KLFTPCmdParserDelegate
 
-- (void)socket:(GCDAsyncSocket *)sock didConnectToHost:(NSString *)host port:(uint16_t)port {
-}
-
-- (void)socket:(GCDAsyncSocket *)sock didReadData:(NSData *)data withTag:(long)tag {
-    NSString * resultStr = [[NSString alloc] initWithBytes:data.bytes length:[data length] encoding:NSUTF8StringEncoding];
-    FTPReturnCode retureCode = [self ftpReturnCodeWithString:resultStr];
+- (void)klFTPCmdParser:(KLFTPCmdParser*)parser didParsedServerResponse:(NSString*)response{
+    NSLog (response);
+    FTPReturnCode retureCode = [self ftpReturnCodeWithString:response];
     switch (retureCode) {
         case FTPReturnCode_ConnectionEstablished: {
             [self sendCmd:[self loginUserCmd]];
@@ -436,7 +437,7 @@ typedef enum {
         }
         case FTPReturnCode_FileNotFound: {
             if (self.isFileSizeCmdSend) { //File not exist
-                [self fileSizeDeterminedWithResultStr:resultStr returnCode:retureCode];
+                [self fileSizeDeterminedWithResultStr:response returnCode:retureCode];
             }else { //CWD Failed, Dir not exist
                 self.shouldCreateDir = YES;
                 self.currentPathIndex--;
@@ -445,7 +446,7 @@ typedef enum {
             break;
         }
         case FTPReturnCode_FileSizeRetrived: {
-            [self fileSizeDeterminedWithResultStr:resultStr returnCode:retureCode];
+            [self fileSizeDeterminedWithResultStr:response returnCode:retureCode];
             break;
         }
         case FTPReturnCode_EnterPassiveMode: {
@@ -454,7 +455,7 @@ typedef enum {
             }else {
                 [self sendCmd:[self storCmd]];
             }
-            NSInteger port = [self portFromFTPRetureStr:resultStr];
+            NSInteger port = [self portFromFTPRetureStr:response];
             if (port > 0) {
                 self.pasvPort = port;
                 [self prepareTransferSocketAtPort:self.pasvPort];
@@ -468,9 +469,26 @@ typedef enum {
         default:
             break;
     }
+    
 }
 
+
+#pragma mark - GCDAsyncSocketDelegate
+
+- (void)socket:(GCDAsyncSocket *)sock didConnectToHost:(NSString *)host port:(uint16_t)port {
+}
+
+- (void)socket:(GCDAsyncSocket *)sock didReadData:(NSData *)data withTag:(long)tag {
+    if( sock != self.tcpSocket )
+        return;
+    NSString * resultStr = [[NSString alloc] initWithBytes:data.bytes length:[data length] encoding:NSUTF8StringEncoding];
+    [self.parser parseString:resultStr];
+ }
+
 - (void)socket:(GCDAsyncSocket *)sock didWriteDataWithTag:(long)tag {
+    if( sock != self.writeSocket){
+        return;
+    }
     if (tag == WRITE_TAG) {
         self.transferItem.finishedSize += self.bytesWritten;
         [self transferProgressDidChangedWithDetaSize:self.bytesWritten];
