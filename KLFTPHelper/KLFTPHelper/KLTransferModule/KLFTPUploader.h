@@ -35,8 +35,10 @@
  */
 
 #import <Foundation/Foundation.h>
+#import "GCDAsyncSocket.h"
+#import "KLFTPCmdParser.h"
 #import "KLFTPTransfer.h"
 
-@interface KLFTPUploader : KLFTPTransfer
+@interface KLFTPUploader : KLFTPTransfer <GCDAsyncSocketDelegate,KLFTPCmdParserDelegate>
 
 @end

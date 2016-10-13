@@ -36,7 +36,7 @@
 
 #import "KLFTPUploader.h"
 #import "KLFTPCmdParser.h"
-#import "GCDAsyncSocket.h"
+
 
 #define WRITE_TAG       100011
 
