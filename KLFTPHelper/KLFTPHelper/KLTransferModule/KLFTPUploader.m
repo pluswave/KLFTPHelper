@@ -90,7 +90,8 @@ typedef enum {
     if (host) {
         self.tcpSocket = [[GCDAsyncSocket alloc] initWithDelegate:self delegateQueue:dispatch_get_global_queue(0, 0)];
         NSError * error = nil;
-        [self.tcpSocket connectToHost:host onPort:21 error:&error];
+        int port = self.transferItem.destURL.port != nil ? (  self.transferItem.destURL.port.unsignedShortValue ): 21;
+        [self.tcpSocket connectToHost:host onPort:port error:&error];
         self.parser = [ [KLFTPCmdParser alloc] initWithDelegate:self];
         return !!error ? NO : YES;
     }
