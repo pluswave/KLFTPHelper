@@ -28,7 +28,7 @@
     int slen = [str length];
     int clen = [self.readBuffer length];
     NSError *error;
-    NSRegularExpression * regex = [NSRegularExpression regularExpressionWithPattern: @"^[2-5][0-9]{2} .*$" options:NSRegularExpressionAnchorsMatchLines error:&error];
+    NSRegularExpression * regex = [NSRegularExpression regularExpressionWithPattern: @"^[1-5][0-9]{2} .*$" options:NSRegularExpressionAnchorsMatchLines error:&error];
     if (clen + slen < 256){
         [self.readBuffer appendString:str];
         NSRange   searchedRange = NSMakeRange(0, [self.readBuffer length]);
