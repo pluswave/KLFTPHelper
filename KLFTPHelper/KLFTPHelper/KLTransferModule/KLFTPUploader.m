@@ -135,7 +135,7 @@ typedef enum {
         NSArray * strArray = [ipDes componentsSeparatedByString:@","];
         NSString * portFront = [strArray objectAtIndex:[strArray count]-2];
         NSString * portEnd = [strArray objectAtIndex:[strArray count]-1];
-        portEnd = [portEnd substringToIndex:portEnd.length-3];
+        portEnd = [portEnd stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@" )\r\n"]]; 
         NSInteger port = [portFront intValue]*256 + [portEnd intValue];
         return port;
     }
@@ -171,6 +171,9 @@ typedef enum {
             uint64_t fileSize = [[compents objectAtIndex:1] longLongValue];
             self.transferItem.finishedSize = fileSize;
         }
+    }
+    else if( retCode == FTPReturnCode_FileNotFound){
+        self.transferItem.finishedSize = 0;
     }
 }
 
@@ -449,11 +452,6 @@ typedef enum {
             break;
         }
         case FTPReturnCode_EnterPassiveMode: {
-            if (self.transferItem.finishedSize > 0) {
-                [self sendCmd:[self appeCmd]];
-            }else {
-                [self sendCmd:[self storCmd]];
-            }
             NSInteger port = [self portFromFTPRetureStr:response];
             if (port > 0) {
                 self.pasvPort = port;
@@ -465,7 +463,11 @@ typedef enum {
             [self transferRunLoop];
             break;
         }
-        default:
+        default:{
+            NSError * error = [self errorWithCode:KLFTPErrorCode_RemoteWriteError msg:response];
+            [self transferStateDidChangeWithError:error];
+        }
+            //NSLog( response);
             break;
     }
     
@@ -481,6 +483,17 @@ typedef enum {
 - (void)socket:(GCDAsyncSocket *)sock didConnectToHost:(NSString *)host port:(uint16_t)port {
     if(sock == self.tcpSocket){
         [self.tcpSocket readDataWithTimeout:3 tag:0];
+    }
+    else if( sock == self.writeSocket){
+        //NSLog(@"data connection ok");
+        if (self.transferItem.finishedSize > 0) {
+            [self sendCmd:[self appeCmd]];
+        }else {
+            [self sendCmd:[self storCmd]];
+        }
+    }
+    else{
+        NSLog(@"timing issue, connected to what socket?");
     }
 }
 
