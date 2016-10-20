@@ -53,6 +53,21 @@ typedef enum {
     FTPReturnCode_FileNotFound              = 550,
 }FTPReturnCode;
 
+
+typedef enum {
+    FTPUpload_Idle = 1,
+    FTPUpload_ConnectingToCtrlSocket,
+    FTPUpload_ConnectedToCtrlSocket,
+    FTPUpload_SendingUserName,
+    FTPUpload_SendingPassword,
+    FTPUpload_SendingCwd,
+    FTPUpload_SendingFileSize,
+    FTPUpload_SendingPasv,
+    FTPUpload_OpenningDataSocket,
+    FTPUpload_SendingStorOrAppend,
+    FTPUpload_ReadingToTransfer,
+} FTPUPloadState;
+
 @interface KLFTPUploader()
 
 @property (nonatomic, strong) NSInputStream         * readStream;
@@ -77,6 +92,8 @@ typedef enum {
 
 @property (nonatomic, assign) BOOL                  isFileSizeCmdSend;
 
+@property (nonatomic, assign) FTPUPloadState        state;
+
 @property (nonatomic, strong) KLFTPCmdParser        * parser;
 
 @end
@@ -93,6 +110,7 @@ typedef enum {
         int port = self.transferItem.destURL.port != nil ? (  self.transferItem.destURL.port.unsignedShortValue ): 21;
         [self.tcpSocket connectToHost:host onPort:port error:&error];
         self.parser = [ [KLFTPCmdParser alloc] initWithDelegate:self];
+        self.state = FTPUpload_ConnectingToCtrlSocket;
         return !!error ? NO : YES;
     }
     return NO;
@@ -187,6 +205,7 @@ typedef enum {
     self.shouldPause = NO;
     self.shouldCreateDir = NO;
     self.isFileSizeCmdSend = NO;
+    self.state = FTPUpload_Idle;
     self.currentPathIndex = -1;
     [self.pathArray removeAllObjects];self.pathArray = nil;
 }
@@ -198,6 +217,7 @@ typedef enum {
         [self transferProgressDidChangedWithDetaSize:self.transferItem.finishedSize];
         [self transferDidFinished];
     }else {
+        self.state = FTPUpload_SendingPasv;
         [self sendCmd:[self enterPasvModeCmd]];
     }
 }
@@ -453,6 +473,7 @@ typedef enum {
             break;
         }
         case FTPReturnCode_EnterPassiveMode: {
+            self.state = FTPUpload_OpenningDataSocket;
             NSInteger port = [self portFromFTPRetureStr:response];
             if (port > 0) {
                 self.pasvPort = port;
@@ -461,6 +482,7 @@ typedef enum {
             break;
         }
         case FTPReturnCode_ReadyToTransfer: {
+            self.state = FTPUpload_ReadingToTransfer;
             [self transferRunLoop];
             break;
         }
@@ -483,10 +505,12 @@ typedef enum {
 
 - (void)socket:(GCDAsyncSocket *)sock didConnectToHost:(NSString *)host port:(uint16_t)port {
     if(sock == self.tcpSocket){
+        self.state = FTPUpload_ConnectedToCtrlSocket;
         [self.tcpSocket readDataWithTimeout:3 tag:0];
     }
     else if( sock == self.writeSocket){
         //NSLog(@"data connection ok");
+        self.state = FTPUpload_SendingStorOrAppend;
         if (self.transferItem.finishedSize > 0) {
             [self sendCmd:[self appeCmd]];
         }else {
@@ -534,9 +558,17 @@ typedef enum {
 - (void)socketDidDisconnect:(GCDAsyncSocket *)sock withError:(NSError *)err {
     if( sock == self.tcpSocket){
         NSLog(@"ctrl socket disconnect");
+        if( self.state < FTPUpload_ReadingToTransfer ){
+            self.transferItem.transferState = KLFTPTransferStateFailed;
+            [self transferStateDidChangeWithError:err];
+        }
     }
     else if( sock == self.writeSocket){
         NSLog(@"data socket disconnect");
+        if (self.transferItem.finishedSize < self.transferItem.fileSize) {
+            self.transferItem.transferState = KLFTPTransferStateFailed;
+            [self transferStateDidChangeWithError:err];
+        }
     }
     else{
         NSLog(@"Timing issue, socks %p, %p, %p ", sock, self.tcpSocket, self.writeSocket);
