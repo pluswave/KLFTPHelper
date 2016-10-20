@@ -43,12 +43,16 @@
 #pragma mark - Interface
 
 + (KLFTPTransfer *)transferWithItem:(KLFTPTransferItem *)transferItem {
+    KLFTPTransfer *transfer = nil;
     if (transferItem.transferType == KLFTPTransferTypeDownload) {
-        return [[KLFTPDownloader alloc] init];
+        transfer = [[KLFTPDownloader alloc] init];
     }else if (transferItem.transferType == KLFTPTransferTypeUpload) {
-        return [[KLFTPUploader alloc] init];
+        transfer = [[KLFTPUploader alloc] init];
     }
-    return nil;
+    if( transfer ){
+        [transfer setTransferItem:transferItem];
+    }
+    return transfer;
 }
 
 - (BOOL)start {
