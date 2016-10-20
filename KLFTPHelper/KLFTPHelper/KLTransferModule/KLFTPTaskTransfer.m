@@ -209,7 +209,11 @@
                 [self.delegate taskTransfer:self transferStateDidChangedForTask:self.task error:error];
             }
         }
-    }else {
+    }
+    else if(item.transferState == KLFTPTransferStateFailed){
+        [self transferCurrentItem]; // Retransmit current Item
+    }
+    else {
         [self.task setTransferState:item.transferState];
         if ([self.delegate respondsToSelector:@selector(taskTransfer:transferStateDidChangedForTask:error:)]) {
             [self.delegate taskTransfer:self transferStateDidChangedForTask:self.task error:error];
