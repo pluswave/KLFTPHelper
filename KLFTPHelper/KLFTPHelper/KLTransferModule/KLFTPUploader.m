@@ -223,9 +223,11 @@ typedef enum {
 }
 
 - (void)closeTransferStreams {
+    [self.writeSocket setDelegate:nil];
     [self.writeSocket disconnect];
     self.writeSocket = nil;
     
+    [self.tcpSocket setDelegate:nil];
     [self.tcpSocket disconnect];
     self.tcpSocket = nil;
 }
@@ -264,7 +266,6 @@ typedef enum {
 }
 
 - (void)transferDidFinished {
-    [self closeTransferStreams];
     self.transferItem.transferState = KLFTPTransferStateFinished;
     dispatch_async(dispatch_get_main_queue(), ^{
         if ([self.delegate respondsToSelector:@selector(klFTPTransfer:transferStateDidChangedForItem:error:)]) {
